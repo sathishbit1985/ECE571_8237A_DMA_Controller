@@ -1,0 +1,110 @@
+
+
+module test;
+  logic [3:0] Dack,Dreq;
+  logic Clock=1 , nIOW , nIOR;
+  wire [7:0] Data;
+  logic [7:0] Data1;
+  logic [3:0]Dmatransfer;
+  
+
+
+  
+  IODevices M1 (Dmatransfer,Dack , Dreq, Clock , nIOW , nIOR , Data);
+  initial
+    forever #1 Clock =~Clock;
+   
+
+task Dmaaccess(input logic [3:0]channel , input logic [7:0] Delay1,Delay2,Delay3,Delay4);
+fork
+
+
+begin
+if(channel[0]== 1)
+begin
+#(Delay1);
+Dmatransfer[0] = 1;
+#2;
+Dmatransfer[0] = 0;
+end
+else
+Dmatransfer[0] = 0;
+end
+
+begin
+if(channel[1]== 1)
+begin
+#(Delay2);
+Dmatransfer[1] = 1;
+#2;
+Dmatransfer[1] = 0;
+end
+else
+Dmatransfer[1] = 0;
+end
+
+
+begin
+if(channel[2] == 1)
+begin
+#(Delay3);
+Dmatransfer[2] = 1;
+#2;
+Dmatransfer[2] = 0;
+end
+else
+Dmatransfer[2] = 0;
+end
+
+begin
+if(channel[3] == 1)
+begin
+#(Delay4);
+Dmatransfer[3] = 1;
+#2;
+Dmatransfer[3] = 0;
+end
+else
+Dmatransfer[3] = 0;
+end
+
+
+join
+endtask
+
+  assign Data = Data1;
+  
+  initial
+    begin
+
+      #1 Dack = '0;
+      #1 nIOW = 1;
+      #1 nIOR = 1;
+      Dmaaccess(4'b0001,'0,'0,'0,'0);
+    
+      #1 Dack[0] = 1;
+      #1 nIOW = 0;
+        
+      #1 Data1 =8'h45;
+      #1 Data1 =8'h45;
+      #1 Data1 =8'h41;
+      #1 Data1 =8'h42;
+      #1 Data1 =8'h43;
+      #1 Data1 =8'h44;
+      #1 Data1 =8'h45;
+      #1 Data1 =8'h46;
+      #1 Data1 =8'h47;
+      #1 Data1 =8'h48;
+      #1 Data1 =8'h49;
+      
+      #300
+      $finish;
+    end
+  
+  initial
+    begin
+$dumpfile("dump.vcd"); $dumpvars;
+  end
+    
+endmodule
+  
