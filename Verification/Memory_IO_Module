@@ -1,0 +1,137 @@
+
+module Memory(input logic Clock ,nMemR ,nMemW ,input logic [15:0] Addr, inout wire [7:0] Data);
+logic [7:0] Mem[16'hFFFF:0];
+logic [15:0]Address;
+int i=0;
+
+initial
+begin
+for(i=0;i<16'hFFFF;i++)
+Mem[i]=0;
+end
+
+always_ff@(posedge Clock)
+begin
+Address <= Addr;
+end
+
+assign Data = ~nMemR ? Mem[Address] : 'z;
+
+always@(posedge Clock)
+begin
+if(~nMemW)
+Mem[Address] <= Data;
+end
+
+endmodule
+
+
+module IO(input logic Dmatransfer, input logic Dack,output logic Dreq , input logic Clock , nIOW , nIOR , inout [7:0] Data);
+logic [7:0] Buffer[];
+logic [7:0] Bufferdata;
+int i=0;
+ 
+always_comb
+begin
+if(Dmatransfer)
+Dreq = 1;
+if(Dack)
+Dreq = 0;
+end 
+
+
+assign Data = (Dack && ~nIOR) ? Bufferdata : 'z;
+
+always@(posedge Clock)
+begin
+if(Dack && ~nIOW)
+begin
+Buffer = new[i+1](Buffer);
+Buffer[i]=Data ;
+i=i+1;
+end
+if(Dack && ~nIOR)
+begin
+Buffer = new[i+1](Buffer);
+Buffer[i] = $random;
+Bufferdata = Buffer[i];
+i=i+1;
+end
+end
+
+endmodule
+
+
+
+module IODevices(input logic [3:0]Dmatransfer,input logic [3:0]Dack , output logic [3:0] Dreq, input logic Clock , nIOW , nIOR , inout [7:0] Data);
+
+genvar i;
+generate
+for(i=0;i<4;i++)
+IO M1 (Dmatransfer[i],Dack[i],Dreq[i] ,Clock , nIOW , nIOR , Data);
+endgenerate
+
+endmodule
+
+
+
+
+
+ 
+
+task Dmaaccess(input logic [3:0]channel , input logic [7:0] Delay1,Delay2,Delay3,Delay4);
+fork
+logic [3:0]Dmatransfer;
+
+begin
+if(channel[0]== 1)
+begin
+#(Delay1);
+Dmatransfer[0] = 1;
+#2;
+Dmatransfer[0] = 0;
+end
+else
+Dmatransfer[0] = 0;
+end
+
+begin
+if(channel[1]== 1)
+begin
+#(Delay2);
+Dmatransfer[1] = 1;
+#2;
+Dmatransfer[1] = 0;
+end
+else
+Dmatransfer[1] = 0;
+end
+
+
+begin
+if(channel[2] == 1)
+begin
+#(Delay3);
+Dmatransfer[2] = 1;
+#2;
+Dmatransfer[2] = 0;
+end
+else
+Dmatransfer[2] = 0;
+end
+
+begin
+if(channel[3] == 1)
+begin
+#(Delay4);
+Dmatransfer[3] = 1;
+#2;
+Dmatransfer[3] = 0;
+end
+else
+Dmatransfer[3] = 0;
+end
+
+
+join
+endtask
