@@ -46,16 +46,16 @@ always@(posedge Clock)
 begin
 if(Dack && ~nIOW)
 begin
-Buffer = new[i+1](Buffer);
-Buffer[i]=Data ;
-i=i+1;
+Buffer <= new[i+1](Buffer);
+Buffer[i] <= Data ;
+i <=i+1;
 end
 if(Dack && ~nIOR)
 begin
-Buffer = new[i+1](Buffer);
-Buffer[i] = $random;
-Bufferdata = Buffer[i];
-i=i+1;
+Buffer <= new[i+1](Buffer);
+Buffer[i] <= $random;
+Bufferdata <= Buffer[i];
+i <= i+1;
 end
 end
 
