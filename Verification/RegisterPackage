@@ -15,7 +15,7 @@ parameter CURRENT_ADDRESS_REGISTER0      = 4'b0000,
           CLEAR_MASK_REGISTER            = 4'b1110,
           WRITE_ALL_MASK_REGISTER        = 4'b1111,
           REQUEST_REGISTER               = 4'b1001;
-
+          
 endpackage
 
 
