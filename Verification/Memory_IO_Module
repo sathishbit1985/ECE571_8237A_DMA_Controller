@@ -1,5 +1,6 @@
 
 module Memory(input logic Clock ,nMemR ,nMemW ,input logic [15:0] Addr, inout wire [7:0] Data);
+
 logic [7:0] Mem[16'hFFFF:0];
 logic [15:0]Address;
 int i=0;
@@ -27,6 +28,7 @@ endmodule
 
 
 module IO(input logic Dmatransfer, input logic Dack,output logic Dreq , input logic Clock , nIOW , nIOR , inout [7:0] Data);
+
 logic [7:0] Buffer[];
 logic [7:0] Bufferdata;
 int i=0;
