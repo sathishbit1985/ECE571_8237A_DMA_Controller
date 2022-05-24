@@ -1,21 +1,23 @@
-package Dmainternalregisters;
+package DmaRegisterAddressCode;
 
-parameter CURRENT_ADDRESS_REGISTER0      = 4'b0000,
-          CURRENT_WORD_COUNT_REGISTER0   = 4'b0001,
-          CURRENT_ADDRESS_REGISTER1      = 4'b0010,
-          CURRENT_WORD_COUNT_REGISTER1   = 4'b0011,
-          CURRENT_ADDRESS_REGISTER2      = 4'b0100,
-          CURRENT_WORD_COUNT_REGISTER2   = 4'b0101,
-          CURRENT_ADDRESS_REGISTER3      = 4'b0110,
-          CURRENT_WORD_COUNT_REGISTER3   = 4'b0111,
-          STATUS_REGISTER                = 4'b1000,
-   	  COMMAND_REGISTER               = 4'b1000,
-          MODE_REGISTER                  = 4'b1011,
-          WRITE_SINGLE_MASK_REGISTER     = 4'b1010,
-          CLEAR_MASK_REGISTER            = 4'b1110,
-          WRITE_ALL_MASK_REGISTER        = 4'b1111,
-          REQUEST_REGISTER               = 4'b1001;
-          
+parameter 	               CH0_CURRENT_ADDRESS          = 0,
+			CH0_CURRENT_WORD_COUNT       = 1,
+			CH1_CURRENT_ADDRESS          = 2,
+			CH1_CURRENT_WORD_COUNT       = 3,
+			CH2_CURRENT_ADDRESS          = 4,
+			CH2_CURRENT_WORD_COUNT       = 5,
+			CH3_CURRENT_ADDRESS          = 6,
+			CH3_CURRENT_WORD_COUNT       = 7,
+			STATUS_REGISTER              = 8,
+			COMMAND_REGISTER             = 8,
+			REQUEST_REGISTER             = 9,
+			WRITE_SINGLE_MASK_REGISTER   = 10,
+			MODE_REGISTER                = 11,
+			CLEAR_BPFF                   = 12
+			TEMPORARY_REGISTER	   = 13,
+			MASTER_CLEAR                 = 13,
+			CLEAR_MASK_REGISTER          = 14,
+			WRITE_ALL_MASK_REGISTER      = 15;
 endpackage
 
 
