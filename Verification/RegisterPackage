@@ -1,6 +1,6 @@
 package DmaRegisterAddressCode;
 
-parameter 	               CH0_CURRENT_ADDRESS          = 0,
+parameter 	        CH0_CURRENT_ADDRESS          = 0,
 			CH0_CURRENT_WORD_COUNT       = 1,
 			CH1_CURRENT_ADDRESS          = 2,
 			CH1_CURRENT_WORD_COUNT       = 3,
