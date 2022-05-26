@@ -1,8 +1,7 @@
-
-module Memory(input logic Clock ,nMemR ,nMemW ,input logic [15:0] Addr, inout wire [7:0] Data);
+module Memory(SystemBusIF.MemoryDevice pin);
 
 logic [7:0] Mem[16'hFFFF:0];
-logic [15:0]Address;
+logic [15:0]Addr;
 int i=0;
 
 initial
@@ -11,25 +10,24 @@ for(i=0;i<16'hFFFF;i++)
 Mem[i]=0;
 end
 
-always_ff@(posedge Clock)
+always_ff@(posedge pin.Clock)
 begin
-Address <= Addr;
+Addr <= pin.Address;
 end
 
-assign Data = ~nMemR ? Mem[Address] : 'z;
+assign pin.Data = ~pin.nMEMR ? Mem[Addr] : 'z;
 
-always@(posedge Clock)
+always@(posedge pin.Clock)
 begin
-if(~nMemW)
-Mem[Address] <= Data;
+if(~pin.nMEMW)
+Mem[Addr] <= pin.Data;
 end
 
 endmodule
 
 
-module IO(input logic Dmatransfer, input logic Dack,output logic Dreq , input logic Clock , nIOW , nIOR , inout [7:0] Data);
+module IO(input logic Dmatransfer, input logic Clock, Reset, Dack, nIOR, nIOW, inout [7:0] Data, output logic Dreq,output logic [7:0] Buffer[]);
 
-logic [7:0] Buffer[];
 logic [7:0] Bufferdata;
 int i=0;
  
@@ -41,54 +39,105 @@ if(Dack)
 Dreq = 0;
 end 
 
-
 assign Data = (Dack && ~nIOR) ? Bufferdata : 'z;
 
 always@(posedge Clock)
 begin
 if(Dack && ~nIOW)
 begin
-Buffer <= new[i+1](Buffer);
-Buffer[i] <= Data ;
-i <=i+1;
+Buffer = new[i+1](Buffer);
+Buffer[i] = Data ;
+i = i+1;
 end
 if(Dack && ~nIOR)
 begin
-Buffer <= new[i+1](Buffer);
-Buffer[i] <= $random;
-Bufferdata <= Buffer[i];
-i <= i+1;
+Buffer = new[i+1](Buffer);
+Buffer[i] = $random;
+Bufferdata = Buffer[i];
+i=i+1;
 end
 end
 
 endmodule
 
+module IODevices(input logic [3:0]Dmatransfer,SystemBusIF.IODevice pin,output logic [7:0] IOBuffer1[] , output logic [7:0] IOBuffer2[] ,output logic [7:0] IOBuffer3[],output logic [7:0] IOBuffer4[] );
 
-
-module IODevices(input logic [3:0]Dmatransfer,input logic [3:0]Dack , output logic [3:0] Dreq, input logic Clock , nIOW , nIOR , inout [7:0] Data);
-
-genvar i;
-generate
-for(i=0;i<4;i++)
-IO M1 (Dmatransfer[i],Dack[i],Dreq[i] ,Clock , nIOW , nIOR , Data);
-endgenerate
+  IO M1 (Dmatransfer[0],pin.Clock, pin.Reset, pin.Dack[0], pin.nIOR, pin.nIOW, pin.Data, pin.Dreq[0],IOBuffer1);
+  IO M2 (Dmatransfer[1],pin.Clock, pin.Reset, pin.Dack[1], pin.nIOR, pin.nIOW, pin.Data, pin.Dreq[1],IOBuffer2);  
+  IO M3 (Dmatransfer[2],pin.Clock, pin.Reset, pin.Dack[2], pin.nIOR, pin.nIOW, pin.Data, pin.Dreq[2],IOBuffer3);  
+  IO M4 (Dmatransfer[3],pin.Clock, pin.Reset, pin.Dack[3], pin.nIOR, pin.nIOW, pin.Data, pin.Dreq[3],IOBuffer4);
 
 endmodule
 
 
-
-
-
- 
-
-task Dmaaccess(input logic [3:0]channel , input logic [7:0] Delay1,Delay2,Delay3,Delay4);
-fork
+module test;
+logic Clock=1;
+logic [7:0] IOData,MemoryData;
 logic [3:0]Dmatransfer;
+logic [7:0] IOBuffer1[],IOBuffer2[],IOBuffer3[],IOBuffer4[];
+logic Reset;
+int n=0;
 
+typedef struct packed{
+logic [3:0] channel; 
+logic [7:0] Delay1,Delay2,Delay3,Delay4;
+}Dmarequest;
+
+Dmarequest D;
+
+SystemBusIF MainBus(Clock,Reset);
+
+Memory M1 (MainBus);
+IODevices M2 (Dmatransfer,MainBus,IOBuffer1,IOBuffer2,IOBuffer3,IOBuffer4);
+
+initial
+  forever #1 Clock =~Clock;
+
+    
+initial
+  begin
+      
+    @(negedge Clock) MainBus.Dack = '0;
+                     MainBus.nIOW = 1;
+                     MainBus.nIOR = 1;
+                     MainBus.nMEMW=1;
+                     MainBus.nMEMR = 1;
+   @(negedge Clock)  D.channel = 4'b0001;
+                     D.Delay1='0;
+                     D.Delay2='0;
+                     D.Delay3='0;
+                     D.Delay4='0;
+                     Dmaaccess(D);
+    @(negedge Clock) MainBus.Dack[0] = 1;
+    @(negedge Clock) MainBus.Address=0;
+    @(negedge Clock) MainBus.nIOR = 0;
+                     MainBus.nMEMW = 0;
+               
+    repeat(9) @(negedge Clock) MainBus.Address=MainBus.Address+1;
+    
+    @(negedge Clock) MainBus.nIOR = 1;
+                     MainBus.nMEMW = 1;
+    @(negedge Clock) MainBus.nMEMR = 0;
+                     MainBus.Address =0;
+
+    for(n=0;n<(IOBuffer1.size());n++)
+      begin
+        MemoryData = MainBus.Data;
+        IOData = IOBuffer1[n];
+        $display("%h,%h %h",IOData,MemoryData,MainBus.Address);
+        MainBus.Address = MainBus.Address+1;
+        #2;
+      end
+    $finish;
+    end
+  
+task Dmaaccess(input Dmarequest Dma);
+
+fork
 begin
-if(channel[0]== 1)
+if(Dma.channel[0]== 1)
 begin
-#(Delay1);
+#(Dma.Delay1);
 Dmatransfer[0] = 1;
 #2;
 Dmatransfer[0] = 0;
@@ -98,9 +147,9 @@ Dmatransfer[0] = 0;
 end
 
 begin
-if(channel[1]== 1)
+if(Dma.channel[1]== 1)
 begin
-#(Delay2);
+#(Dma.Delay2);
 Dmatransfer[1] = 1;
 #2;
 Dmatransfer[1] = 0;
@@ -111,9 +160,9 @@ end
 
 
 begin
-if(channel[2] == 1)
+if(Dma.channel[2] == 1)
 begin
-#(Delay3);
+#(Dma.Delay3);
 Dmatransfer[2] = 1;
 #2;
 Dmatransfer[2] = 0;
@@ -123,9 +172,9 @@ Dmatransfer[2] = 0;
 end
 
 begin
-if(channel[3] == 1)
+if(Dma.channel[3] == 1)
 begin
-#(Delay4);
+#(Dma.Delay4);
 Dmatransfer[3] = 1;
 #2;
 Dmatransfer[3] = 0;
@@ -134,6 +183,13 @@ else
 Dmatransfer[3] = 0;
 end
 
-
 join
 endtask
+  
+  
+initial
+  begin
+    $dumpfile("dump.vcd"); $dumpvars;
+  end
+    
+endmodule
