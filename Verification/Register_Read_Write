@@ -1,0 +1,52 @@
+module ProgramCondition;
+
+parameter DMAADDRESS = 12'hFFF;
+logic Clock =1 , Reset;
+typedef struct packed{
+logic [11:0] Address;
+logic [3:0]  RegCommandCode;
+logic  [7:0]  Data;
+logic Read;
+} RegisterWR;
+
+import DmaRegisterAddressCode ::* ;
+SystemBusIF MainBus(Clock,Reset);
+BusFuncModel Bus (MainBus);
+RegisterWR [33:0] DmaRegisterData = { '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH0_CURRENT_ADDRESS,8'h34,1'b1},    '{ DMAADDRESS,CH0_CURRENT_ADDRESS,8'h81,1'b1}, 
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH0_CURRENT_WORD_COUNT,8'h01,1'b1}, '{ DMAADDRESS,CH0_CURRENT_WORD_COUNT,8'h11,1'b1},
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH1_CURRENT_ADDRESS,8'h00,1'b1},    '{ DMAADDRESS,CH1_CURRENT_ADDRESS,8'h56,1'b1}, 
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH1_CURRENT_WORD_COUNT,8'h11,1'b1}, '{ DMAADDRESS,CH1_CURRENT_WORD_COUNT,8'h10,1'b1},
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH2_CURRENT_ADDRESS,8'h75,1'b1},    '{ DMAADDRESS,CH2_CURRENT_ADDRESS,8'hEA,1'b1},
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH2_CURRENT_WORD_COUNT,8'h02,1'b1}, '{ DMAADDRESS,CH2_CURRENT_WORD_COUNT,8'h51,1'b1},
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH3_CURRENT_ADDRESS,8'hD1,1'b1},    '{ DMAADDRESS,CH3_CURRENT_ADDRESS,8'hAA,1'b1},
+                                      '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH3_CURRENT_WORD_COUNT,8'h10,1'b1}, '{ DMAADDRESS,CH3_CURRENT_WORD_COUNT,8'h54,1'b1},
+				                              '{ DMAADDRESS,MASTER_CLEAR,8'h00,1'b0},       '{ DMAADDRESS,COMMAND_REGISTER,8'h82,1'b0},       '{ DMAADDRESS,REQUEST_REGISTER,8'h04,1'b0}, 
+                                      '{ DMAADDRESS,MODE_REGISTER,8'h84,1'b0},      '{ DMAADDRESS,MODE_REGISTER,8'h85,1'b0},          '{ DMAADDRESS,MODE_REGISTER,8'h86,1'b0},
+                                      '{ DMAADDRESS,MODE_REGISTER,8'h87,1'b0},      '{ DMAADDRESS,WRITE_ALL_MASK_REGISTER,8'h00,1'b0},'{ DMAADDRESS,WRITE_SINGLE_MASK_REGISTER,8'h04,1'b0},
+                                      '{ DMAADDRESS,CLEAR_MASK_REGISTER,8'h00,1'b0}};
+
+initial
+  forever #1 Clock = ~Clock;
+
+initial
+begin
+  repeat(2) @(negedge Clock) Reset=1;
+  @(negedge Clock) Reset=0;
+  //Write all DMA Registers
+  foreach( DmaRegisterData[i])
+  Bus.WriteBUS({DmaRegisterData[i].Address ,DmaRegisterData[i].RegCommandCode},DmaRegisterData[i].Data,1'b0);
+  //Read DMA registers which are readable 
+  foreach(DmaRegisterData[i])
+    begin
+      if(DmaRegisterData[i].Read === 1)
+      begin
+        Bus.ReadBUS({DmaRegisterData[i].Address ,DmaRegisterData[i].RegCommandCode},1'b0);
+        if(DmaRegisterData[i].RegCommandCode !==  CLEAR_BPFF)
+          if(DmaRegisterData[i].Data !== MainBus.Data)
+          $display("Data written= %b Data Read = %b", DmaRegisterData[i].Data ,MainBus.Data);
+      end
+    end
+  $finish;
+end
+
+endmodule
