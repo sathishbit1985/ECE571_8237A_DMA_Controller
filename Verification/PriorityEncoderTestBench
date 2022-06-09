@@ -1,0 +1,369 @@
+///////////////////////////
+interface SystemBusIF(input logic Clock, Reset);
+	
+	wire  [7:0]  Data;
+	logic [15:0] Address;
+	
+	logic nMEMR;
+	logic nMEMW;
+	wire  nIOR;
+	wire  nIOW;
+	
+	logic Hlda;
+	logic Hrq;
+	logic [3:0] Dack;
+	logic [3:0] Dreq;
+	
+	
+	modport BFM8086 (
+			input Clock,
+			input Reset,
+			input Hrq,
+			
+			output nMEMW,
+			output nMEMR,
+			output nIOR,
+			output nIOW,
+			output Address,
+			output Hlda,
+			
+			inout  Data
+			);
+	
+	modport DMA(
+			input Clock,
+			input Reset,
+			input Hlda,
+			input Dreq,
+	
+			output Dack,
+			output nMEMR,
+			output nMEMW,
+			
+			inout nIOR,
+			inout nIOW,
+			inout Address,
+			inout Data
+			);
+			
+	modport IODevice(
+			input Clock,
+			input Reset,
+			input Dack,
+			input nIOR,
+			input nIOW,
+			input Address,
+			
+			output Data,			
+			output Dreq			
+			); 
+endinterface
+
+///////////////////////////////////////////
+//Datapath Control interface
+interface ControlIF();
+
+	logic [3:0] ModeLoad;  	  					  //Mode Register 
+	logic [3:0] BAREnable,       BARLoad; 		  //Base Address Registers
+	logic [3:0] CAREnable,   	 CARLoad;  		  //Current Address Registers
+	logic [3:0] TAREnbale,   	 TARLoad;  		  //Temporary Address Registers 
+	logic [3:0] BWCEnable, 		 BWCLoad; 		  //Base Word Count Registers 
+	logic [3:0] CWCEnable,       CWCLoad; 		  //Current Word Count Registers
+	logic [3:0] TWCEnable, 		 TWCLoad; 		  //Temporary Word Count Registers
+	logic [3:0] AddrMuxSel, 	 WCMuxSel; 		  //Select lines to Address and Word Count Multiplexors
+	logic 		CommandEnable, 	 CommandLoad;	  //Command Register
+	logic 		MaskLoad; 	          		      //Mask Register
+	logic 		StatusEnable;   				  //Status Register
+	logic 		AddrBufEnbable;					  //Address Buffer
+	logic 		DataBufEnable, DataBufLoad; 				  //Data Buffer Enable
+	logic 		DataBuffRead, DataBuffWrite;	  //Data Buffer Read/Write	
+	logic		ClearMask,    WriteAllMask;       //Clear and Set mask Registers
+	logic 		MasterClear,     FF;
+	
+	logic ValidReqID;
+	logic [1:0] ReqID;
+	
+
+
+  //Modport For Timing Control Logic Block
+  modport TCL (
+	output ModeLoad,   
+	output BAREnable,       BARLoad,  
+	output CAREnable,   	CARLoad,  
+	output TAREnbale,   	TARLoad,  
+	output BWCEnable, 		BWCLoad, 
+	output CWCEnable, 		CWCLoad, 
+	output TWCEnable, 		TWCLoad, 
+	output AddrMuxSel, 	    WCMuxSel,
+	output CommandEnable, 	CommandLoad, 
+	output MaskLoad, 	        
+	output StatusEnable,   
+	output AddrBufEnbable, 
+	output DataBufEnable, DataBufLoad,
+    output DataBuffRead, DataBuffWrite,	
+	output ClearMask,    WriteAllMask,
+	output MasterClear,     FF,
+	
+	input ValidReqID, ReqID
+	);
+
+
+  //Modport for Datapath
+  modport Datapath (  
+	input ModeLoad,   
+	input BAREnable,       BARLoad,  
+	input CAREnable,   	   CARLoad,  
+	input TAREnbale,   	   TARLoad,  
+	input BWCEnable, 	   BWCLoad, 
+	input CWCEnable, 	   CWCLoad, 
+	input TWCEnable, 	   TWCLoad, 
+	input AddrMuxSel, 	   WCMuxSel,
+	input CommandEnable,   CommandLoad, 
+	input MaskLoad, 	      
+	input StatusEnable,   
+	input AddrBufEnbable,
+	input DataBufEnable, DataBufLoad,
+    input DataBuffRead, DataBuffWrite,
+	input ClearMask,    WriteAllMask,
+	input MasterClear,     FF,
+	input ReqID
+	);
+	
+  modport PE (
+	output ValidReqID,
+	output ReqID
+	);
+	
+endinterface
+
+
+///////////////////////////////
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Name: Kaavya Thrilochan
+// Module Name: Priority Encoder (Arbiter)
+// ECE571 Final Project Spring 2022
+// DMA Controller - Verification Team
+//////////////////////////////////////////////////////////////////////
+module PriorityEncoder_tb();
+SystemBusIF sif(Clock, Reset);
+ControlIF cif();
+logic  Clock, Reset, tbRotatingPriority, tbSenseDreq, tbSenseDack, Dma_Disable;
+logic [3:0] tbMask;
+
+logic [3:0] PendingReq;
+
+/*************************************************************************************
+* sif.Dreq = DREQ driving from test bench to DUT.
+* tbRotatingPriority is driven high or low from testbench to DUT.
+  0 - Fixed Priority, 1 - Rotating Priority.
+* tbMask is used to mask the channel from testbench to the DUT input signal Mask.
+* tbSenseDreq is driven high or low from testbench to DUT to check Dreq being sensed accordingly.
+  0 - Dreq sense active high, 1 - Dreq sense active low.
+* tbSenseDack is driven high or low from testbench to DUT to check Dack being sensed accordingly.
+  0 - Dack sense active low, 1 - Dack sense active high.
+* reqId, ExpDack, PendingReq and ValidRe is 4 bit which will indicate which all channels have requested and are
+  still not yet completed DMA transfer. (Indirectly Dreq is outputed).
+*************************************************************************************/
+
+parameter TRUE = 1'b1;
+parameter FALSE = 1'b0;
+parameter CLOCK_CYCLE = 40;
+parameter CLOCK_WIDTH = CLOCK_CYCLE/2;
+parameter IDLE_CLOCKS = 2;
+parameter FIXEDPRIORITY = 0;
+parameter ROTATINGPRIORITY = 1;
+parameter MAXARBITRATIONTIME = 10;
+
+//intermediate variables
+logic [3:0] Dreq, Dack;
+int error = 0;
+
+//sense check
+assign Dreq = ((!tbSenseDreq) ? sif.Dreq : ~sif.Dreq) & ~tbMask;
+assign Dack = (tbSenseDack) ? sif.Dack : ~sif.Dack;
+
+PriorityEncoder DUT(sif, cif, tbRotatingPriority, tbSenseDreq, tbSenseDack, 
+                        Dma_Disable, tbMask, PendingReq);
+						
+	
+//create running clock.
+initial
+begin
+Clock = FALSE;
+forever #CLOCK_WIDTH Clock = ~Clock;
+end
+
+
+//  Generate Reset signal
+task Release_Reset();
+	Reset = TRUE;
+	repeat (IDLE_CLOCKS) @(negedge Clock);
+	Reset = FALSE;
+endtask
+
+task DMA_enable();
+    Dma_Disable = TRUE;
+    repeat (IDLE_CLOCKS + 1) @(negedge Clock);
+    Dma_Disable = FALSE;
+endtask
+
+task Directed_Traffic();
+
+	repeat (IDLE_CLOCKS + 2) @(negedge Clock);
+				sif.Hlda = 1'b0; tbRotatingPriority = 1'b0; tbSenseDreq = 1'b0; tbSenseDack = 1'b0; tbMask = 4'b0100; sif.Dreq = 4'b1100; //masked one channel
+				
+	@(negedge Clock);   
+				sif.Hlda = 1'b1;
+				
+	@(negedge Clock);   
+				sif.Hlda = 1'b0; tbRotatingPriority = 1'b0; tbSenseDreq = 1'b0; tbSenseDack = 1'b0; tbMask = 4'b0000; sif.Dreq = 4'b1100; //unmasked the masked channel
+		
+	repeat (3) @(negedge Clock);     
+			sif.Hlda = 1'b1;
+				
+	repeat (2) @(negedge Clock);   
+				sif.Hlda = 1'b0; tbRotatingPriority = 1'b0; tbSenseDreq = 1'b0; tbSenseDack = 1'b0; tbMask = 4'b0000; sif.Dreq = 4'b0000; //no Dreq
+	
+	repeat (3) @(negedge Clock);
+				sif.Hlda = 1'b1;
+				
+	repeat (3) @(negedge Clock);
+				sif.Hlda = 1'b0; tbRotatingPriority = 1'b0; tbSenseDreq = 1'b0; tbSenseDack = 1'b1; tbMask = 4'b0000; sif.Dreq = 4'b0100; //sense Dack on High
+		
+	repeat (3) @(negedge Clock);
+				sif.Hlda = 1'b1;		
+				
+	repeat (5) @(negedge Clock);
+	
+endtask
+
+task Random_Traffic();
+	repeat (IDLE_CLOCKS) @(negedge Clock);
+	sif.Hlda = 1'b0; tbRotatingPriority = 1'b0; tbSenseDreq = 1'b0; tbSenseDack = 1'b0; 
+		
+	repeat(5)begin //AR: increase iterations
+	    repeat (IDLE_CLOCKS) @(negedge Clock);
+		tbMask = $urandom_range('d0, 'd15); sif.Dreq = $urandom_range('d0, 'd15); 
+		repeat (IDLE_CLOCKS) @(negedge Clock); 
+	end
+endtask
+
+// -------------------------------------------------
+// --------------- stimulus to DUT -----------------
+// -------------------------------------------------
+initial
+begin
+	Release_Reset();
+	DMA_enable();
+	Directed_Traffic();	
+	Random_Traffic();
+	$finish;
+end
+
+// -----------Function to check Rotating Priority based on the input Dreq being asserted-----------------
+function int RotatingPriority(input logic [3:0] refDreq); // 0011
+static logic [1:0] leastpriority = 2'b11;
+logic [1:0] funcReqId;
+		unique case(leastpriority)
+		 2'b00: begin
+				unique case(refDreq)
+				4'b??1? : funcReqId = 2'b01;
+				4'b?10? : funcReqId = 2'b10;
+				4'b100? : funcReqId = 2'b11;
+				4'b0001 : funcReqId = 2'b00;
+				endcase
+				end
+		 2'b01: begin
+				unique case(refDreq)
+				4'b?1?? : funcReqId = 2'b10;
+				4'b10?? : funcReqId = 2'b11;
+				4'b00?1 : funcReqId = 2'b00;
+				4'b0010 : funcReqId = 2'b01;
+				endcase
+				end
+		 2'b10: begin
+				unique case(refDreq)
+				4'b1??? : funcReqId = 2'b11;
+				4'b0??1 : funcReqId = 2'b00;
+				4'b0?10 : funcReqId = 2'b01;
+				4'b0100 : funcReqId = 2'b10;
+				endcase
+				end
+		 2'b11: begin
+				unique case(refDreq)
+				4'b???1 : funcReqId = 2'b00;
+				4'b??10 : funcReqId = 2'b01;
+				4'b?100 : funcReqId = 2'b10;
+				4'b1000 : funcReqId = 2'b11;
+				endcase
+				end
+ endcase
+			return funcReqId;
+endfunction
+	
+	
+//---------------------------------------------
+//--------------- Assertions ------------------
+//---------------------------------------------
+
+/* Never see a Dack for masked channel*/
+property NoDackForMaskedChannel_p;
+        @(posedge Clock) disable iff(Reset)
+            (cif.ValidReqID & sif.Hlda) |=>  |(sif.Dack & ~tbMask);
+endproperty
+	NoDackForMaskedChannel_a : assert property (NoDackForMaskedChannel_p);
+
+
+/*Atmost one Dack signal is asserted at a time */
+property AtmostoneDack_p;
+@(posedge Clock) disable iff (Reset || Dma_Disable)
+	(!Dreq && sif.Hlda) throughout $onehot0(Dack);
+endproperty
+	AtmostoneDack_a: assert property (AtmostoneDack_p);
+
+
+/* ValidDreq should be low when Dreq is not asserted or when Reset is High */
+property ValidDreq_p;
+@(posedge sif.Clock)
+	(!Dreq || sif.Reset || ~sif.Hlda) throughout (!cif.ValidReqID);
+endproperty
+	ValidDreq_a: assert property (ValidDreq_p);
+
+
+/* ValidDreq and Hlda should go high following Dreq being asserted and Hlda being low */
+property ValidDreq_p1;
+@(posedge Clock)
+	disable iff (Dma_Disable || sif.Reset)
+	(Dreq && ~sif.Hlda) |-> ##[0:MAXARBITRATIONTIME] (cif.ValidReqID && sif.Hlda);
+endproperty
+	ValidDreq_a1: assert property (ValidDreq_p1);
+
+
+/* ReqID_Dut is stable throughout tbHlda high */
+property ReqIDStable_p;
+@(posedge Clock)
+	sif.DMA.Hlda throughout $stable(cif.PE.ReqID);
+endproperty
+	ReqIDStable_a: assert property (ReqIDStable_p);
+
+/* Dack for Fixed Priority */
+property DackFixed_p(id);
+@(posedge Clock)
+	(sif.Dreq[id] && ~tbMask[id] && sif.Hlda && ~tbRotatingPriority) |-> Dack[id];
+endproperty
+	DackFixed_a0: assert property (@(posedge Clock)DackFixed_p(0));
+	DackFixed_a1: assert property (@(posedge Clock)DackFixed_p(1));
+	DackFixed_a2: assert property (@(posedge Clock)DackFixed_p(2));
+	DackFixed_a3: assert property (@(posedge Clock)DackFixed_p(3));
+
+
+/* Dack for Rotating Priority */	
+always @(Dreq)begin // 0110
+    if(Dack[RotatingPriority(Dreq)] == 'b1)begin
+     $display("-----PASS-----");
+    end else begin
+       $display("-----FAIL-----");
+    end
+end
+endmodule
