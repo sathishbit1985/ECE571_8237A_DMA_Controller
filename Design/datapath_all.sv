@@ -1,4 +1,10 @@
-//DMA Datapath
+//////////////////////////////////////////////////////////////////////////////////
+// Designer Name: Kirk Chapman
+// Module Name: DMA Datapath, Registers, Internal Bus Interface
+// Project Name: DMA Controller 
+////////////////////////////////////////////////////////////////////////////////////
+
+
 module Datapath ( output logic [7:0] CommandRegOut,    //Output from Command Register to Priority Block
 				  output wire  [7:0] Address,		   //Output from Temporary Address Regsister to external A7-A0 pins	
 				  output logic [3:0] MaskRegOut,	   //Output from Mask Register to Priority Block  	 	
@@ -7,11 +13,15 @@ module Datapath ( output logic [7:0] CommandRegOut,    //Output from Command Reg
 				  input  logic [3:0] PendingReq,       //Pending DMA Requests by Channel from Priority Block
 				  ControlIF.Datapath Ctrl,			   //Control interface from Control block to Registers,
 				  input  logic Clock, Reset);
-				  
-//Register Abbreviations: 
-//BAR = Base Address Register,       BWC = Base Word Count Register
-//CAR = Current Address Register,    TAR = Temporary Address Register,
-//CWC = Current Word Count Register, TWC = Temporary Word Count Register				  
+
+
+/*************************************************************************************				  
+*Register Abbreviations: 
+*BAR = Base Address Register,       BWC = Base Word Count Register
+*CAR = Current Address Register,    TAR = Temporary Address Register,
+*CWC = Current Word Count Register, TWC = Temporary Word Count Register				  
+*************************************************************************************/
+
 
 logic [15:0] TWCOut[3:0], TAROut[3:0];  //Temporary Word Count and Temporary Address Registers output
 logic [15:0] IncOut[3:0], DecOut[3:0];  //Incrementor and decrementor outputs
@@ -25,11 +35,11 @@ logic [3:0] TerminalCount;
 	IntBus Bus(.*);	//Internal Data Bus				  
 
 //Register Instantiations.
-//Instance names will be Register[i].Command, Register[i].Mask, etc.
+//Instance names will be Register.Command, Register.Mask, etc.
 genvar i;
 generate begin: Register //Couldnt add Register here as well as below
 	//One of each Register
-	CommandReg Command(Bus.CommandMod, CommandRegOut, Ctrl.CommandEnable, Ctrl.CommandLoad, Ctrl.MasterClear);
+	CommandReg Command(Bus.CommandMod, CommandRegOut, Ctrl.CommandLoad, Ctrl.MasterClear);
 	
 	MaskReg    Mask   (Bus.MaskMod, MaskRegOut, Ctrl.ClearMask, Ctrl.WriteAllMask, Ctrl.MaskLoad, Ctrl.MasterClear);
 	
@@ -39,7 +49,7 @@ generate begin: Register //Couldnt add Register here as well as below
 	
 	DataIOBuff DataBuffer (Bus.DataBufMod, DB,  Ctrl.DataBufEnable, Ctrl.DataBufLoad);
 
-for(i = 0; i < 4; i++) begin:i
+for(i = 0; i < 4; i++) begin:i 
 	//Create Bank of 4 Address Registers
 	BaseAddressReg    BaseAddress    ( Bus.BARMod, Ctrl.BARLoad[i], Ctrl.FF);
 	CurrentAddressReg CurrentAddress ( Bus.CARMod, Mux2CAR[i], Ctrl.CAREnable[i], Ctrl.CARLoad[i], Ctrl.FF, Ctrl.AddrMuxSel[i]);
@@ -68,9 +78,10 @@ endmodule
 
 
 
-			
-//Current address *4, 16bits
-//*********LIST BITS********
+/***************************			
+*Current address  
+*16 bits, Read and Write
+***************************/
 module CurrentAddressReg ( IntBus.CARMod Bus,				
 				           input logic [15:0] CAIn,   //Current Address In
 				           input logic Enable, Load, FF, SEL);
@@ -91,9 +102,10 @@ endmodule
 
 
 
-//current word *4, 16bits, instantiate 4
-//Read and Write
-//*********LIST BITS********
+/***************************			
+*Current Word Count  
+*16 bits, Read and Write
+***************************/
 module CurrentWordCountReg ( IntBus.CWCMod Bus,			
 						     input  logic [15:0] CWCIn,  //Current Word Count In
 						     input  logic Enable, Load, FF, SEL);
@@ -114,8 +126,12 @@ endmodule
 
 
 
-// Temp address *4, 16bits
-//*********LIST BITS********
+/***************************			
+*Temporary Address  
+*16 bits Read and Write
+*Lower address bits out to Ports
+*Output to Incrementor/Decrementor 
+***************************/
 module TempAddressReg( IntBus.TARMod Bus,       //Output to Internal Data Bus
 					   output logic [15:0] TAROut, //Temporary Address Register Out to Inc/Dec
 					   output logic [7:0]  LAddrOut, //Output to Address lines A[7:0]
@@ -143,8 +159,12 @@ endmodule
 
 
 
-//Temp word *4, 16bits, 
-//*********LIST BITS********
+/***************************			
+*Temporary Word Count
+*16 bits Read and Write
+*Lower address bits out to Ports
+*Output to Incrementor/Decrementor 
+***************************/
 module TempWordCountReg( IntBus.TWCMod Bus,   	  	  //Output to Internal Data Bus
 						 output logic [15:0] TWCOut,  //Temporary Word Count Out To Decrementor  
 						 output logic TerminalCount,  //Output to Status Register indicating if Terminal count has been reached
@@ -157,7 +177,7 @@ module TempWordCountReg( IntBus.TWCMod Bus,   	  	  //Output to Internal Data Bu
 					  (Enable) ? TWordCount[7:0] : 'z;
 					  
 	assign TWCOut = (Enable) ? TWordCount : 'z;
-	assign TerminalCount = (TWordCount != 16'hFFFF);
+	assign TerminalCount = (TWordCount == 16'hFFFF);
 
 	always @(posedge Bus.Clock)
 		if (Bus.Reset) TWordCount <= '0;
@@ -169,9 +189,12 @@ module TempWordCountReg( IntBus.TWCMod Bus,   	  	  //Output to Internal Data Bu
 endmodule
 
 
-
-//Base Address *4, 16bits
-//*********LIST BITS********
+/**********************************************
+*Base Address 
+*16bits Write Only
+*Used to Set Current Address in Auto Initialize
+*Created for future Upgrades
+***********************************************/
 module BaseAddressReg ( IntBus.BARMod Bus,  		//Input from Internal Data Bus
 				        input logic Load, FF);
 
@@ -187,8 +210,12 @@ endmodule
 
 
 
-//Base word count *4, 16bits,
-//*********LIST BITS********
+/**********************************************
+*Base Word Count 
+*16bits Write Only
+*Used to Set Current Word Count in Auto Initialize
+*Created for future Upgrades
+***********************************************/
 module BaseWordCountReg ( IntBus.BWCMod Bus, 		 //Input from Internal Data Bus
 				          input logic Load, FF);
 
@@ -203,18 +230,21 @@ module BaseWordCountReg ( IntBus.BWCMod Bus, 		 //Input from Internal Data Bus
 endmodule
 
 
-
-//Command Register
-//*********LIST BITS********
-module CommandReg(IntBus.CommandMod Bus, 					//Input from Internal Data Bus
-			      output logic [7:0] CmdOut,						//Output to Priority and Control Blocks
-			      input  logic Enable, Load, MasterClear);  
+/**********************************************
+*Command Register
+*Contains settings for programing of Controller
+*8 Bits, Write Only
+*Output to Priority Block
+***********************************************/
+module CommandReg(IntBus.CommandMod Bus, 			//Input from Internal Data Bus
+			      output logic [7:0] CmdOut,		//Output to Priority and Control Blocks
+			      input  logic Load, MasterClear);  
 
 	localparam DISABLE = 8'b0000_0100; //Bit pattern for controller disable
 
 	logic [7:0] Command;
 
-	assign CmdOut = (Enable) ? Command : 'z;
+	assign CmdOut = Command;
 
 	always_ff @(posedge Bus.Clock)
 		if (Bus.Reset || MasterClear) Command <= DISABLE; //Disable DMA Controller on Reset
@@ -222,10 +252,12 @@ module CommandReg(IntBus.CommandMod Bus, 					//Input from Internal Data Bus
 	
 endmodule				   
 					
-
-//Mode is Write Only by CPU. The mode Can be read by the Control Block 
-//through ModeOut.
-//*********LIST BITS********
+/**********************************************
+*Mode Register
+*Contains Mode Settings for a given Channel
+*16 bits, Write Only
+*Output to the Control Block 
+***********************************************/
 module ModeReg( IntBus.ModeMod Bus, 		 //Input from Internal Data Bus 
 			    output logic [7:2] ModeOut,  //Output to Control Block
 			    input logic  Load);
@@ -242,10 +274,14 @@ module ModeReg( IntBus.ModeMod Bus, 		 //Input from Internal Data Bus
 endmodule
 
  
-
-//Mask is set/reset by software commands
-//Mask[0] is channel 0, Mask[1] is Channel 1, etc.
-//*********LIST BITS********
+/**********************************************
+*Mask Register
+*4 Bits, Write and Set/Reset
+*Sets bits to Mask(Disable) Channel DMA Requests
+*Mask is set/reset by software commands, Can be written
+*Mask[0] is channel 0, Mask[1] is Channel 1, etc.
+*Output to Priority Block
+***********************************************/
 module MaskReg ( IntBus.MaskMod Bus,				//Input from internal Data Bus
 				 output logic [3:0] MaskOut,		//Output to Priority Block
 				 input  ClearMask,  WriteAllMask,		        //Signals to Clear/Set All bits 
@@ -266,12 +302,13 @@ endmodule
 
 
 
-
-//Status Register to be Read by the CPU. 
-//The Upper 4 bits indicate whether a DMA request is pending.
-//The Lower 4 bits indicate whether a terminal  count has been reached for that channel. 
-//The Status is Reset upon begin Read by the CPU. 
-//*********LIST BITS********
+/**********************************************
+*Status Register 
+*8 Bits, Read Only
+*Status[7:4] indicate whether a DMA request is pending, from Priority Block
+*Status[3:0] indicate whether a terminal  count has been reached for that channel. 
+*The Status is Reset upon being Read by the CPU. 
+***********************************************/
 module StatusReg( IntBus.StatusMod Bus,					//Output to Internal Data Bus
 				  input [3:0] PendingReq, TerminalCount, 	
 				  input logic Enable, MasterClear);
@@ -287,9 +324,15 @@ module StatusReg( IntBus.StatusMod Bus,					//Output to Internal Data Bus
 endmodule
 
  
+/**********************************************
+				   BUFFERS, Etc
+***********************************************/
 
-/*********BUFFERS*************/
-//Address, 4bits 
+/**********************************************
+*Address Buffer 
+*8 Bits
+*Outputs lower 8 bits of Address to External Pins 
+***********************************************/
 module AddressBuff #( parameter SIZE = 8)
 				    ( output logic [SIZE-1:0] AddressOut,
 				      input  logic [SIZE-1:0] AddressIn, 
@@ -301,16 +344,16 @@ endmodule
 
 
 
-//Data, 16bits,
-//
+/**********************************************
+*Data Buffer 
+*8 Bits
+*In/Out 8 bits of Data to External Pins 
+***********************************************/
 module DataIOBuff #( parameter SIZE = 8)
 				  ( IntBus.DataBufMod Bus, 
 				   inout [SIZE-1:0] DB, 	   //To external DB[7:0]     
 				   input Enable, Load); //Controls To Read or Write internal Bus from External DB[7:0].  
 	
-//assign  DB = (Enable) ? Bus.Data : 'z;
-//assign  Bus.Data = (Load) ? DB :'z;	
-
 always_comb begin
 	if (Load) Bus.Data = DB;
 	end
@@ -320,8 +363,13 @@ assign DB = (Enable) ? Bus.Data : 'z;
 endmodule			
 
 
-
-//Multiplexers
+/**********************************************
+*Multiplexer 
+*Asymetrical Inputs. In2 is half size of In1
+*Output is full size. In1 is padded to output.
+*Allows for 8bit input from Data, as well as 
+*16 bit input from incrementor, Temp Regs 
+***********************************************/
 module Mux2to1 #( parameter SIZE = 16) 
   				( output logic [SIZE-1:0] Out, 
 				  input  logic [(SIZE>>1)-1:0] In1,
@@ -334,8 +382,11 @@ module Mux2to1 #( parameter SIZE = 16)
 
 endmodule
 
-
-//Incrementor/Decrementor 
+/**********************************************
+*Incrementor/Decrementor 
+*Can be set to Increment or Decrement by setting 
+*INCDEC input
+***********************************************/
 module IncDec #( parameter SIZE = 16)
 			   ( output logic [SIZE-1:0] Out, 
 				 input  logic [SIZE-1:0] In,  
@@ -349,14 +400,13 @@ module IncDec #( parameter SIZE = 16)
 endmodule
 
 
-
-//Internal bus interface with modports for Registers
+/**********************************************
+*Internal bus interface with modports for Registers
+***********************************************/
 interface IntBus (input logic Clock, input logic Reset);
 	
-	//wire [7:0]  Data;
 	logic [7:0] Data;
 	
-	///*****CHANGE TO WRITE MODPORT
 	//Command Register
 	modport CommandMod ( input Data,  input Clock, Reset);
 	//Mode Register				 
@@ -366,7 +416,7 @@ interface IntBus (input logic Clock, input logic Reset);
 	modport MaskMod( input Data,  input Clock, Reset);
 
 
-	///*****CHANGE TO R/W MODPORT
+	
 	//Data buffer
 	modport DataBufMod( inout Data);
 	
@@ -377,7 +427,7 @@ interface IntBus (input logic Clock, input logic Reset);
 	modport BWCMod ( inout Data,  input Clock, Reset);	
 			
 
-	///*****CHANGE TO READ MODPORT
+
 	//Current Word Count Registers						   
 	modport CWCMod ( output Data, input Clock, Reset);
 	
