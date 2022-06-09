@@ -255,7 +255,7 @@ endmodule
 /**********************************************
 *Mode Register
 *Contains Mode Settings for a given Channel
-*16 bits, Write Only
+*6 bits, Write Only
 *Output to the Control Block 
 ***********************************************/
 module ModeReg( IntBus.ModeMod Bus, 		 //Input from Internal Data Bus 
