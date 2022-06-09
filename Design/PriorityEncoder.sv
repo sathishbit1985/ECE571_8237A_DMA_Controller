@@ -122,7 +122,7 @@ module PriorityEncoder(
         NextState = PresentState;
 
         unique case(PresentState)
-            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable & ~sif.Reset) NextState = WAITING;
+            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable) NextState = WAITING;
             WAITING :   if(sif.Hlda)            NextState = ACKNOWLEDGE;
             ACKNOWLEDGE:if(~sif.Hlda)           NextState = ARBITER;
             default : NextState = PresentState;
@@ -136,7 +136,7 @@ module PriorityEncoder(
         {tempDack, cif.ValidReqID} = '0;
 
         unique case(PresentState)
-            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable & ~sif.Reset) cif.ValidReqID = 1'b1;
+            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable) cif.ValidReqID = 1'b1;
             WAITING :   begin
                         cif.ValidReqID = 1'b1;
 
