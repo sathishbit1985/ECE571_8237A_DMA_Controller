@@ -249,6 +249,7 @@ module CommandReg(IntBus.CommandMod Bus, 			//Input from Internal Data Bus
 	always_ff @(posedge Bus.Clock)
 		if (Bus.Reset || MasterClear) Command <= DISABLE; //Disable DMA Controller on Reset
 		else if (Load) Command <= Bus.Data;
+		else           Command <= Command;
 	
 endmodule				   
 					
