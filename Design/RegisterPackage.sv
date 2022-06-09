@@ -1,0 +1,21 @@
+package DmaRegisterAddressCode;
+
+parameter 	CH0_CURRENT_ADDRESS          = 0,
+			CH0_CURRENT_WORD_COUNT       = 1,
+			CH1_CURRENT_ADDRESS          = 2,
+			CH1_CURRENT_WORD_COUNT       = 3,
+			CH2_CURRENT_ADDRESS          = 4,
+			CH2_CURRENT_WORD_COUNT       = 5,
+			CH3_CURRENT_ADDRESS          = 6,
+			CH3_CURRENT_WORD_COUNT       = 7,
+			STATUS_REGISTER              = 8,
+			COMMAND_REGISTER             = 8,
+			REQUEST_REGISTER             = 9,
+			WRITE_SINGLE_MASK_REGISTER   = 10,
+			MODE_REGISTER                = 11,
+			CLEAR_BPFF                   = 12,
+			TEMPORARY_REGISTER		     = 13,
+			MASTER_CLEAR                 = 13,
+			CLEAR_MASK_REGISTER          = 14,
+			WRITE_ALL_MASK_REGISTER      = 15;
+endpackage

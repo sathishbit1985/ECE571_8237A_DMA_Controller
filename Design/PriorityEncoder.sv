@@ -37,9 +37,9 @@ module PriorityEncoder(
     STATE PresentState, NextState;
 
 
-    /* ValidDreq is an internal wire whose value is calculated by-
+    /* ValidDreq is an internal wire whose value is calculated.
 
-    First to Sense our Dreq signal, we do XOR between Dreq and SenseDreq,
+    First to Sense our Dreq signal, we do XOR with SenseDreq,
     then the output is processed to get the channels which are
     not masked by doing an AND operation with complement of Mask. */
 
@@ -50,9 +50,7 @@ module PriorityEncoder(
     // Sequential Logic.
     always_ff @(posedge sif.Clock)
     begin
-
-	// Assertion to check if all the control signals are valid and Dreq is also known (no Xs or Zs present).
-        validControlSignals_a : assert (!$isunknown({sif.Reset,RotatingPriority,sif.Hlda,SenseDreq,SenseDack,DMA_Disable}));
+        validControlSignals_a : assert (!$isunknown({sif.Reset,RotatingPriority,sif.Hlda,SenseDreq,SenseDack,DMA_Disable,Mask}));
         validDreq : assert (!$isunknown(ValidDreq));
 
         if(sif.Reset)
@@ -112,7 +110,7 @@ module PriorityEncoder(
                     end
                 end
             end
-	
+
     end
 
 
@@ -122,7 +120,7 @@ module PriorityEncoder(
         NextState = PresentState;
 
         unique case(PresentState)
-            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable) NextState = WAITING;
+            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable & ~sif.Reset) NextState = WAITING;
             WAITING :   if(sif.Hlda)            NextState = ACKNOWLEDGE;
             ACKNOWLEDGE:if(~sif.Hlda)           NextState = ARBITER;
             default : NextState = PresentState;
@@ -136,7 +134,7 @@ module PriorityEncoder(
         {tempDack, cif.ValidReqID} = '0;
 
         unique case(PresentState)
-            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable) cif.ValidReqID = 1'b1;
+            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable & ~sif.Reset) cif.ValidReqID = 1'b1;
             WAITING :   begin
                         cif.ValidReqID = 1'b1;
 
@@ -176,7 +174,7 @@ module PriorityEncoder(
 endmodule
 
 
-// Not used interface.
+
 `ifdef TEST
 module testbench();
     logic Clock, Reset, Hlda, RotatingPriority, SenseDreq, SenseDack, DMA_Disable;
@@ -195,7 +193,7 @@ module testbench();
     parameter CHECK = 4'b0001;
 
 
-    PriorityEncoder DUT(.* , .Dreq(Dreq));
+    PriorityEncoder DUT(.* , .ipDreq(Dreq));
 
 
     // Create running clock.
@@ -272,10 +270,9 @@ module testbench();
     ValidDack_a : assert property (ValidDack_p);
 
     // Function to check Fixed Priority based on the input Dreq.
-    function int FixedPriorityID(input logic [3:0] refDreq, refMask, input logic Sense);
-        logic [3:0] dreq;
-        dreq = (refDreq ^ {4{Sense}}) & ~refMask;
-        unique case(dreq)
+    function int FixedPriorityID(input logic [3:0] refDreq);
+        refDreq = (refDreq ^ {4{SenseDreq}}) & ~Mask;
+        unique case(refDreq)
         4'b???1 : return 2'b00;
         4'b??10 : return 2'b01;
         4'b?100 : return 2'b10;
@@ -288,7 +285,7 @@ module testbench();
     ReqID should be correct based on Dreq.*/
     property FixedPriorityReqID_p;
         @(posedge Clock) disable iff(Reset || RotatingPriority)
-            $rose(ValidReqID) |=> ##[MINTIME:MAXTIME] ReqID === FixedPriorityID(Dreq, Mask, SenseDreq);
+            $rose(ValidReqID) |=> ##[MINTIME:MAXTIME] ReqID === FixedPriorityID(Dreq);
     endproperty
     FixedPriorityReqID_a : assert property (FixedPriorityReqID_p);
 
