@@ -13,15 +13,17 @@ interface ControlIF();
 	logic [3:0] CWCEnable,       CWCLoad; 		  //Current Word Count Registers
 	logic [3:0] TWCEnable, 		 TWCLoad; 		  //Temporary Word Count Registers
 	logic [3:0] AddrMuxSel, 	 WCMuxSel; 		  //Select lines to Address and Word Count Multiplexors
-	logic 		CommandLoad;					  //Command Register
+	logic 		CommandEnable, 	 CommandLoad;	  //Command Register
 	logic 		MaskLoad; 	          		      //Mask Register
 	logic 		StatusEnable;   				  //Status Register
 	logic 		AddrBufEnbable;					  //Address Buffer
 	logic 		DataBufEnable, DataBufLoad; 	  //Data Buffer Enable
 	logic		ClearMask,    WriteAllMask;       //Clear and Set mask Registers
 	logic 		MasterClear,     FF;
-	logic 		ValidReqID;
-	logic 		[1:0] ReqID;
+	logic [3:0] RollOverCheck;
+	
+	logic ValidReqID;
+	logic [1:0] ReqID;
 	
 
 
@@ -35,13 +37,14 @@ interface ControlIF();
 	output CWCEnable, 		CWCLoad, 
 	output TWCEnable, 		TWCLoad, 
 	output AddrMuxSel, 	    WCMuxSel,
-	output CommandLoad, 	
+	output CommandEnable, 	CommandLoad, 
 	output MaskLoad, 	        
 	output StatusEnable,   
 	output AddrBufEnbable, 
-	output DataBufEnable,   DataBufLoad,	
-	output ClearMask,       WriteAllMask,
+	output DataBufEnable, DataBufLoad,
+	output ClearMask,    WriteAllMask,
 	output MasterClear,     FF,
+	output RollOverCheck,
 	
 	input ValidReqID, ReqID
 	);
@@ -57,15 +60,18 @@ interface ControlIF();
 	input CWCEnable, 	   CWCLoad, 
 	input TWCEnable, 	   TWCLoad, 
 	input AddrMuxSel, 	   WCMuxSel,
-	input CommandLoad, 
+	input CommandEnable,   CommandLoad, 
 	input MaskLoad, 	      
 	input StatusEnable,   
 	input AddrBufEnbable,
-	input DataBufEnable,   DataBufLoad,
-	input ClearMask,       WriteAllMask,
-	input MasterClear,     FF 
+	input DataBufEnable, DataBufLoad,
+	input ClearMask,    WriteAllMask,
+	input MasterClear,     FF,
+	input ReqID,
+	input RollOverCheck
 	);
 	
+  //Modprt for Priority Encoder	
   modport PE (
 	output ValidReqID,
 	output ReqID
