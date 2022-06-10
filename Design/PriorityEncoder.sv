@@ -3,8 +3,8 @@
 // Module Name: PriorityEncoder, testbench.
 // Project Name: DMA Controller
 //////////////////////////////////////////////////////////////////////////////////
-//`define DEBUG
-//`define TEST
+`define DEBUG
+`define TEST
 
 
 /*************************************************************************************
@@ -177,23 +177,25 @@ endmodule
 
 `ifdef TEST
 module testbench();
-    logic Clock, Reset, Hlda, RotatingPriority, SenseDreq, SenseDack, DMA_Disable;
-    logic [3:0] Dreq, Mask;
-    wire [1:0] ReqID;
-    wire [3:0] Dack, PendingReq;
-    wire ValidReqID;
+
+    logic Clock, Reset, RotatingPriority, SenseDreq, SenseDack, DMA_Disable;
+    logic [3:0] Mask;
+    wire [3:0] PendingReq;
+
+    SystemBusIF sif(Clock, Reset);
+ControlIF cif();
 
     parameter TRUE = 1'b1;
     parameter FALSE = 1'b0;
     parameter CLOCK_CYCLE = 40;
     parameter CLOCK_WIDTH = CLOCK_CYCLE/2;
     parameter IDLE_CLOCKS = 2;
-    parameter MAXTIME = 5;
+    parameter MAXTIME = 10;
     parameter MINTIME = 1;
     parameter CHECK = 4'b0001;
 
 
-    PriorityEncoder DUT(.* , .ipDreq(Dreq));
+    PriorityEncoder DUT(sif.DMA, cif, RotatingPriority, SenseDreq, SenseDack, DMA_Disable, Mask, PendingReq);
 
 
     // Create running clock.
@@ -218,39 +220,39 @@ module testbench();
 
     // As Reset is high for two clock cycles there won't be any ValidReqID asserted
     // For the third cycle DMA_Disable is high which will result in Encoder be in ARBITER state.
-    Dreq = 4'b1000; Mask = 4'b0000;
-    SenseDack = 1;  SenseDreq = 0; Hlda = 0; RotatingPriority = 0; DMA_Disable = 1;
+    sif.Dreq = 4'b1000; Mask = 4'b0000;
+    SenseDack = 1;  SenseDreq = 0; sif.Hlda = 0; RotatingPriority = 0; DMA_Disable = 1;
 
     repeat (IDLE_CLOCKS + 1) @(negedge Clock);
     // Request on channel 3 & 1, Channel 0 is masked and rotating priority.
     // Grant should be given to channel 1, then leastPriority=1;
-    Dreq = 4'b1010; Mask = 4'b0001;
-    SenseDack = 1;  SenseDreq = 0; Hlda = 0; RotatingPriority = 0; DMA_Disable = 0;
+    sif.Dreq = 4'b1010; Mask = 4'b0001;
+    SenseDack = 1;  SenseDreq = 0; sif.Hlda = 0; RotatingPriority = 1; DMA_Disable = 0;
 
-    // Dma has control of the BUS. Dack = 0010
-    repeat (4) @(negedge Clock)   Hlda = 1; Dreq = 4'b1001;
+    // Dma has control of the BUS, Dack = 0010. Request on channel 3 & 0.
+    repeat (4) @(negedge Clock)   sif.Hlda = 1; sif.Dreq = 4'b1001;
 
-    // Dma transfer is complete. Request on channel 3 & 0.
+    // Dma transfer is complete.
     // As channel 0 is masked the request will be ignored.
-    repeat (5) @(negedge Clock)   Hlda = 0;
+    repeat (5) @(negedge Clock)   sif.Hlda = 0;
 
     // Dma has control of the BUS.Request granted to channel 3.
     // Dack = 1000, then leastPriority=3;
-    repeat (2) @(negedge Clock)  Hlda = 1;
+    repeat (2) @(negedge Clock)  sif.Hlda = 1;
 
     // Dma transfer is complete. Request on channel 2 & 0.
     // As channel 0 is masked the request will be ignored.
-    repeat (2) @(negedge Clock)  Hlda = 0; Dreq = 4'b0101;
+    repeat (2) @(negedge Clock)  sif.Hlda = 0; sif.Dreq = 4'b0101;
 
     // Request on channel 3.
-    @(negedge Clock) Dreq = 4'b1101;
+    @(negedge Clock) sif.Dreq = 4'b1101;
 
     // Dma has control of the BUS.Request granted to channel 2.
     // Dack = 0100, then leastPriority=2;
-    repeat (4) @(negedge Clock)   Hlda = 1;
+    repeat (4) @(negedge Clock)   sif.Hlda = 1;
 
     // Dma transfer is complete. Request one channel 3.
-    repeat (5) @(negedge Clock)   Hlda = 0;
+    repeat (5) @(negedge Clock)   sif.Hlda = 0;
 
     // Waiting for Hlda from the processor.
     repeat (2) @(negedge Clock);
@@ -265,14 +267,15 @@ module testbench();
     time when ValidReqID and Hlda is asserted.*/
     property ValidDack_p;
     @(posedge Clock) disable iff(Reset)
-        (ValidReqID & Hlda) |=> ##[MINTIME:MAXTIME] Dack === (CHECK << ReqID);
+        (cif.ValidReqID & sif.Hlda) |-> sif.Dack === (CHECK << cif.ReqID);
     endproperty
     ValidDack_a : assert property (ValidDack_p);
 
     // Function to check Fixed Priority based on the input Dreq.
-    function int FixedPriorityID(input logic [3:0] refDreq);
-        refDreq = (refDreq ^ {4{SenseDreq}}) & ~Mask;
-        unique case(refDreq)
+    function int FixedPriorityID(input bit [3:0] refDreq, refMask, input bit Sense);
+        logic [3:0] dreq;
+        dreq = (refDreq ^ {4{Sense}}) & ~refMask;
+        unique case(dreq)
         4'b???1 : return 2'b00;
         4'b??10 : return 2'b01;
         4'b?100 : return 2'b10;
@@ -285,7 +288,7 @@ module testbench();
     ReqID should be correct based on Dreq.*/
     property FixedPriorityReqID_p;
         @(posedge Clock) disable iff(Reset || RotatingPriority)
-            $rose(ValidReqID) |=> ##[MINTIME:MAXTIME] ReqID === FixedPriorityID(Dreq);
+            $rose(cif.ValidReqID) |->  cif.ReqID === FixedPriorityID(sif.Dreq, Mask, SenseDreq);
     endproperty
     FixedPriorityReqID_a : assert property (FixedPriorityReqID_p);
 
@@ -293,7 +296,7 @@ module testbench();
     should be non zero, if zero then masked channel has a Dack.*/
     property NoDackForMaskedChannel_p;
         @(posedge Clock) disable iff(Reset)
-            (ValidReqID & Hlda) |=>  |(Dack & ~Mask);
+            (cif.ValidReqID & sif.Hlda) |->  |(sif.Dack & ~Mask);
     endproperty
     NoDackForMaskedChannel_a : assert property (NoDackForMaskedChannel_p);
 
