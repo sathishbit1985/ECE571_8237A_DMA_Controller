@@ -3,6 +3,7 @@ module SVARegister(SystemBusIF Bus, ControlIF ctrl,input Clock,Reset);
 
 //If DACK[i] signal is asserted,the current address register of the channel 'i' should Increment after 3 cycles if bit number 3 of mode register is 0
 genvar i;
+  /*
 generate
 for(i=0;i<4;i++)
 begin
@@ -19,6 +20,7 @@ AddressDec_a : assert property(@(posedge Clock)
 ((!(Bus.Dack[i] ^ DMATop.DP.Register.Command.Command[7])) &&(DMATop.DP.Register.i[i].Mode.Mode[3])) |=> ##2 (DMATop.DP.Register.i[i].CurrentAddress.CAddress == $past(DMATop.DP.Register.i[i].CurrentAddress.CAddress ) - 1));
 end
 endgenerate
+*/
 
 
 //If DACK[i] signal is asserted and the value in the word count register of the channel i goes from 0 to FFFFH ,the bit number 'i' of the status register should be to 1
@@ -121,7 +123,7 @@ end
 endgenerate
 
 
-
+/*
 //If DACK[i] signal is asserted,the current word count register of the channel 'i' should Decrement after every 3 cycles
 generate
 for(i=0;i<4;i++)
@@ -130,6 +132,7 @@ WordCountDec_a : assert property(@(posedge Clock)
 (!(Bus.Dack[i] ^ DMATop.DP.Register.Command.Command[7])) |=> ##2 (DMATop.DP.Register.i[i].CurrentWordCount.CWordCount== $past(DMATop.DP.Register.i[i].CurrentWordCount.CWordCount ) -1));
 end
 endgenerate
+*/
 
 endmodule
 
