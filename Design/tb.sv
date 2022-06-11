@@ -25,6 +25,7 @@ import DmaRegisterAddressCode ::* ;
 wire nCS, ALE;
 wire [15:0] AD15_AD0;
 
+ControlIF DMAcif();
 SystemBusIF MainBus(Clock,Reset);
 Memory M(MainBus);
 IODevices IO (Dmarequest, MainBus);
@@ -32,6 +33,7 @@ BusFuncModel Bus (MainBus, AD15_AD0, ALE);
 AddressLatch AL (MainBus, AD15_AD0, ALE );
 PortDecoder P1 (MainBus, nCS);
 DMAControllerTop DMATop(MainBus, nCS , AD15_AD0[15:8]);
+SVARegister SVA (MainBus,DMAcif,Clock,Reset);
 
 RegisterWR [31:0] DmaRegisterData = { '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH0_CURRENT_ADDRESS,8'hA5,1'b1},    '{ DMAADDRESS,CH0_CURRENT_ADDRESS,8'hA5,1'b1}, 
                                       '{ DMAADDRESS,CLEAR_BPFF,8'h00,1'b1},         '{ DMAADDRESS,CH0_CURRENT_WORD_COUNT,8'h10,1'b1}, '{ DMAADDRESS,CH0_CURRENT_WORD_COUNT,8'h00,1'b1},
