@@ -1,3 +1,9 @@
+//////////////////////////////////////////////////////////////////////////////////
+// Designer Name: Ramesh Chandar Aniruddh Punnai
+// Module Name: BusFuncModel
+// Project Name: DMA Controller
+//////////////////////////////////////////////////////////////////////////////////
+
 module BusFuncModel(SystemBusIF.BFM8086 BFMBus, inout logic[15:0] AD15_AD0, output logic ALE );
 	
 	logic M_nIO,Read,BUSWRITE,BUSREAD;
