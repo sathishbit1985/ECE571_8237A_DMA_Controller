@@ -3,8 +3,8 @@
 // Module Name: PriorityEncoder, testbench.
 // Project Name: DMA Controller
 //////////////////////////////////////////////////////////////////////////////////
-`define DEBUG
-`define TEST
+//`define DEBUG
+//`define TEST
 
 
 /*************************************************************************************
@@ -29,6 +29,7 @@ module PriorityEncoder(
     output logic [3:0] PendingReq
     );
 
+	// Internal signals.
     logic [1:0] leastPriority;
     logic [3:0] ValidDreq, tempDack;
 
@@ -50,8 +51,9 @@ module PriorityEncoder(
     // Sequential Logic.
     always_ff @(posedge sif.Clock)
     begin
-        validControlSignals_a : assert (!$isunknown({sif.Reset,RotatingPriority,sif.Hlda,SenseDreq,SenseDack,DMA_Disable,Mask}));
-        validDreq : assert (!$isunknown(ValidDreq));
+	// Immediate assertions to check control signals, Dreq, and Mask values are known.
+        validControlSignals_a : assert (!$isunknown({sif.Reset,RotatingPriority,sif.Hlda,SenseDreq,SenseDack,DMA_Disable}));
+        validDreq : assert (!$isunknown({ValidDreq, Mask}));
 
         if(sif.Reset)
             begin
@@ -110,6 +112,9 @@ module PriorityEncoder(
                     end
                 end
             end
+	`ifdef DEBUG
+        $strobe("Time=%t, ReqID=%d, ValidReqID=%b, Hlda=%b, Dreq=%b, Dack=%b PendingReq=%b ", $time,cif.ReqID,cif.ValidReqID,sif.Hlda,ValidDreq,sif.Dack,PendingReq);
+    `endif
 
     end
 
@@ -120,7 +125,7 @@ module PriorityEncoder(
         NextState = PresentState;
 
         unique case(PresentState)
-            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable & ~sif.Reset) NextState = WAITING;
+            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable) NextState = WAITING;
             WAITING :   if(sif.Hlda)            NextState = ACKNOWLEDGE;
             ACKNOWLEDGE:if(~sif.Hlda)           NextState = ARBITER;
             default : NextState = PresentState;
@@ -134,7 +139,7 @@ module PriorityEncoder(
         {tempDack, cif.ValidReqID} = '0;
 
         unique case(PresentState)
-            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable & ~sif.Reset) cif.ValidReqID = 1'b1;
+            ARBITER :   if(|(ValidDreq) & ~sif.Hlda & ~DMA_Disable) cif.ValidReqID = 1'b1;
             WAITING :   begin
                         cif.ValidReqID = 1'b1;
 
@@ -164,11 +169,6 @@ module PriorityEncoder(
                         end
             default : {tempDack, cif.ValidReqID} = '0;
         endcase
-
-    `ifdef DEBUG
-        $monitor("Time=%t, Channel=%d, ValidReqID=%b, Hlda=%b, Dreq=%b, Dack=%b PendingReq=%b ", $time,cif.ReqID,cif.ValidReqID,sif.Hlda,ValidDreq,Dack,PendingReq);
-    `endif
-
     end
 
 endmodule
@@ -183,7 +183,7 @@ module testbench();
     wire [3:0] PendingReq;
 
     SystemBusIF sif(Clock, Reset);
-ControlIF cif();
+	ControlIF cif();
 
     parameter TRUE = 1'b1;
     parameter FALSE = 1'b0;
@@ -254,8 +254,9 @@ ControlIF cif();
     // Dma transfer is complete. Request one channel 3.
     repeat (5) @(negedge Clock)   sif.Hlda = 0;
 
-    // Waiting for Hlda from the processor.
+    // Reset is high making all outputs to 0.
     repeat (2) @(negedge Clock);
+
 
     $finish;
     end
